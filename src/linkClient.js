@@ -3,7 +3,9 @@ const Client = require('ssh2').Client;
 const linkClient = (service,callback)  => {
 	const _Client = new Client();
 	_Client.on('ready', function(){
-		callback(_Client);
+		if(typeof callback ==='function'){
+			callback(_Client)
+		}
 	}).connect({
 		host: service.host,
 		port: service.port,
