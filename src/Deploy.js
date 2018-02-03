@@ -3,8 +3,11 @@ const linkClient = require('../node/linkClient');
 const { sftps, runShell } = require('../node/clientUtil');
 const fs = require('fs');
 const path = require('path');
-
-// 读取git   执行编译    版本回滚
+const createDir = require('../node/createDir');
+const {gitPull} = require('../node/gitUtil');
+const {runWebpack} = require('../node/runWebpack');
+const createShell = require('../node/createShell');
+// 输出html要对应文件夹深度, 回滚
 
 class Deploy {
     constructor(config, callback) {
@@ -12,20 +15,40 @@ class Deploy {
         this.willDeployList = [];
         this.mkdirFileList = [];
         this.preVersionJson = false;
-        this.initialization();
+        // gitPull(this.config.branchName);
+        // createDir(this.config.shellPath);
+        // createShell(this.config.shellPath);
+        // runWebpack(this.config.shellPath,this.config.webpack)
+        if(this.config.env =='back'){
+            this.back();
+        }else{
+            this.initialization();
+        
+        }
+        
     }
     initialization() {
         let versionFile = this.config.versionFile;
         let outputPath = versionFile.output + '/' + versionFile.fileName;
-        if (!fs.existsSync(outputPath)) {
-            fs.mkdirSync(outputPath);
-        };
         this.outputPath = outputPath;
+        createDir(outputPath);
         this.setVersion();
+        createDir(this.outputPath + `/${this.versionNum}`);
         this.getPreVersionJson();
         this.getWillDeployInfo();
         this.contrast(this.preVersionJson, this.willDeployList);
         this.serviceQueue();
+    }
+    back() {
+        let versionFile = this.config.versionFile;
+        let outputPath = versionFile.output + '/' + versionFile.fileName;
+        this.outputPath = outputPath;
+        this.setVersion();
+        this.backVersion = false;
+        if(this.versionList.length>1){
+            this.backVersion = this.versionList[1];
+            fs.readFileSync(`${outputPath}/${backVersion}/${item.name}`)
+        }
     }
     setVersion() {
         this.versionNum = '1.0.0';
@@ -37,19 +60,21 @@ class Deploy {
         let versionList = [];
         pathList.forEach(function (filename, index) {
             if (filename != '.DS_Store') {
-                versionList.push(filename.replace('.json', '').split('.').join(''))
+                versionList.push(filename.split('.').join(''));//replace('.json', '').
             }
         });
         versionList.sort(function (a, b) {
             return b - a;
         });
+        this.versionList=versionList;
         let curVersion = parseInt(versionList[0]) + 1;
-        this.preVersionNum = versionList[0].toString().split('').join('.') + '.json';
+        this.preVersionNum = versionList[0].toString().split('').join('.');
         this.versionNum = curVersion.toString().split('').join('.');
     }
     getPreVersionJson() {
         if (this.preVersionNum) {
-            this.preVersionJson = JSON.parse(fs.readFileSync(this.outputPath + '/' + this.preVersionNum));
+            let verPath = this.outputPath + `/${this.preVersionNum}`;
+            this.preVersionJson = JSON.parse(fs.readFileSync(verPath + '/' + this.preVersionNum + '.json'));
         }
 
     }
@@ -68,10 +93,23 @@ class Deploy {
                 });
             });
         } else {
-            this.contrastResult=cur;
+            this.contrastResult=this.fileSort(cur);
             return;
         }
-        this.contrastResult=res;
+        this.contrastResult=this.fileSort(res);
+        
+    }
+    fileSort(file){
+        let htmlList = [];
+        let other = [];
+        file.forEach(function(item,index){
+            if(item.type === 'html'){
+                htmlList.push(item);
+            }else{
+                other.push(item)
+            }
+        });
+        return other.concat(htmlList);
     }
     getWillDeployInfo() {
         let deployInfo = readrFileSync(this.config.localPath, this.config.localPath);
@@ -124,11 +162,12 @@ class Deploy {
     }
     // 写入到json文件
     writeVersionJson(){
-        fs.writeFile(this.outputPath + `/${this.versionNum}.json`, JSON.stringify(this.willDeployList), function (err) {
-            if (err) {
-                console.error(err);
-            } else {
-                console.log('json文件写入成功');
+        let verPath = this.outputPath + `/${this.versionNum}`;
+        createDir(verPath);
+        fs.writeFileSync(verPath + `/${this.versionNum}.json`, JSON.stringify(this.willDeployList));
+        this.willDeployList.forEach(function(item,index){
+            if(item.type === 'html'){
+                fs.writeFileSync(`${verPath}/${item.name}`, fs.readFileSync(`${item.path}/${item.name}`));
             }
         });
     }
