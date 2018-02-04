@@ -7,7 +7,7 @@ const createDir = require('../node/createDir');
 const {gitPull} = require('../node/gitUtil');
 const {runWebpack} = require('../node/runWebpack');
 const createShell = require('../node/createShell');
-// 输出html要对应文件夹深度, 回滚
+// 回滚时不创建文件夹
 
 class Deploy {
     constructor(config, callback) {
@@ -19,7 +19,7 @@ class Deploy {
         // createDir(this.config.shellPath);
         // createShell(this.config.shellPath);
         // runWebpack(this.config.shellPath,this.config.webpack)
-        if(this.config.env =='back'){
+        if(this.config.back =='back'){
             this.back();
         }else{
             this.initialization();
@@ -35,7 +35,7 @@ class Deploy {
         this.setVersion();
         createDir(this.outputPath + `/${this.versionNum}`);
         this.getPreVersionJson();
-        this.getWillDeployInfo();
+        this.getWillDeployInfo(this.config.localPath, this.config.localPath);
         this.contrast(this.preVersionJson, this.willDeployList);
         this.serviceQueue();
     }
@@ -46,8 +46,11 @@ class Deploy {
         this.setVersion();
         this.backVersion = false;
         if(this.versionList.length>1){
-            this.backVersion = this.versionList[1];
-            fs.readFileSync(`${outputPath}/${backVersion}/${item.name}`)
+            this.backVersion = this.versionList[1].split('').join('.');
+            let backFilePath = `${outputPath}/${this.backVersion}`;
+            this.getWillDeployInfo(backFilePath,backFilePath);
+            this.contrastResult = this.willDeployList;
+            this.serviceQueue();
         }
     }
     setVersion() {
@@ -111,19 +114,26 @@ class Deploy {
         });
         return other.concat(htmlList);
     }
-    getWillDeployInfo() {
-        let deployInfo = readrFileSync(this.config.localPath, this.config.localPath);
+    getWillDeployInfo(localPath,rootPaht) {
+        let deployInfo = readrFileSync(localPath,rootPaht);
         this.willDeployList = deployInfo.versionFileList;
         this.mkdirFileList = deployInfo.mkdirFileList;
+    }
+    mkdir(mkdirFileList){
+        let mkdirStr = '';
+        for (var i = 0; i < mkdirFileList.length; i++) {
+            mkdirStr += ' \nmkdir -p ' + mkdirFileList[i] + '\n';
+        }
+        return mkdirStr;
     }
     linkService(service){
         var self = this;
         linkClient(service, async function (_Client) {
-            let mkdirStr = '';
-            for (var i = 0; i < self.mkdirFileList.length; i++) {
-                mkdirStr += ' \nmkdir -p ' + self.mkdirFileList[i] + '\n';
+            if(self.config.back!=='back'){
+                let mkdirStr = self.mkdir(self.mkdirFileList);
+                await runShell(_Client, 'cd / \ncd ' + service.path + '\n' + mkdirStr + ' \nls\n \nexit\n');
             }
-            await runShell(_Client, 'cd / \ncd ' + service.path + '\n' + mkdirStr + ' \nls\n \nexit\n');
+            console.log(self.contrastResult)
             // 这里处理sftp相关的内容
             sftps(_Client).then((sftp) => {
                 self.contrastResult.forEach(function (item, index) {
@@ -133,8 +143,9 @@ class Deploy {
                         paths = `${service.path}${item.sortPath}/${item.hashName}`;
                         localpath = `${item.path}/${item.hashName}`;
                     }
+                    
                     sftp.fastPut(localpath, paths, function (err, result) {
-                        if (err) throw err;
+                        if (err) return;
                         console.log( paths+': 文件部署完成');
                         if(index === self.contrastResult.length-1){
                             _Client.end();
@@ -160,14 +171,22 @@ class Deploy {
             selt.linkService(service);
         });
     }
-    // 写入到json文件
+    // 写入到文件
     writeVersionJson(){
         let verPath = this.outputPath + `/${this.versionNum}`;
         createDir(verPath);
+        // 创建json文件
         fs.writeFileSync(verPath + `/${this.versionNum}.json`, JSON.stringify(this.willDeployList));
+        // 创建放置html文件夹
+        this.mkdirFileList.forEach(function(item,index){
+            if(item){
+                fs.mkdirSync(`${verPath}/${item}`);
+            }
+        });
+        // 复制html文件
         this.willDeployList.forEach(function(item,index){
             if(item.type === 'html'){
-                fs.writeFileSync(`${verPath}/${item.name}`, fs.readFileSync(`${item.path}/${item.name}`));
+                fs.writeFileSync(`${verPath}/${item.sortPath}/${item.name}`, fs.readFileSync(`${item.path}/${item.name}`));
             }
         });
     }
