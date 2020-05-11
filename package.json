@@ -1,22 +1,17 @@
 {
-  "name": "nodedeploy",
+  "name": "deploy",
   "version": "1.0.0",
-  "description": "",
-  "main": "src/deploy.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "description": "deploy webapp",
+  "main": "app.js",
+  "dependencies": {
+    "archiver": "^3.1.1",
+    "inquirer": "^7.0.3",
+    "node-ssh": "^7.0.0"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/rocky-one/node-deploy.git"
+  "devDependencies": {},
+  "scripts": {
+    "deploy": "node app.js"
   },
   "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/rocky-one/node-deploy/issues"
-  },
-  "homepage": "https://github.com/rocky-one/node-deploy#readme",
-  "devDependencies": {
-    "ssh2": "^0.5.5"
-  }
+  "license": "MIT"
 }
