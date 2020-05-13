@@ -72,9 +72,8 @@ async function start(sshs) {
         host: ssh.host
       }, `${__dirname}/${config.targetFile[j]}`)
       await command(nodeSsh, 'rm -rf ' + ssh.releaseDir[i], ssh.deployDir[j])
-      await command(nodeSsh, 'rm -rf __MACOSX', ssh.deployDir[j])
       // await command(nodeSsh, 'mkdir ' + ssh.releaseDir[i], ssh.deployDir[j])
-      await command(nodeSsh, 'unzip ' + targetName, ssh.deployDir[j])
+      await command(nodeSsh, 'unzip -o ' + targetName, ssh.deployDir[j])
       await command(nodeSsh, `mv ${folderName} ${ssh.releaseDir[j]}`, ssh.deployDir[j]) 
       await command(nodeSsh, `mv ${targetName} ${utils.getCurrentTime()}.zip`, ssh.deployDir[j]) 
       await command(nodeSsh, 'rm -f ' + targetName, ssh.deployDir[j])
