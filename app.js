@@ -6,9 +6,7 @@ const connectServe = require ('./src/connectServe')
 const uploadFile = require ('./src/uploadFile')
 const command = require ('./src/command')
 const utils = require ('./src/utils')
-const { execSync } = require('child_process')
-const strArr = config.targetDir.split('/')
-const folderName = strArr.pop()
+const gitUpdate = require('./src/gitUpdate')
 const sshLen = config.ssh.length;
 let endSum = 0;
 if (isMainThread) {
@@ -20,21 +18,18 @@ if (isMainThread) {
   })()
 }
 async function main() {
-  const gitStatus = execSync('git status', {
-    cwd: '../',
-    encoding: 'utf8'
-  })
-  // if(gitStatus.indexOf('modified') || gitStatus.indexOf('git add')){
-  //   console.log('请先提交本地修改!')
-  //   return
-  // }
-  // execSync(`git pull origin ${config.gitBranchName}`, {
-  //   cwd: '../',
-  //   encoding: 'utf8',
-  //   stdio: 'inherit'
-  // })
-  const localFile =  `${__dirname}/${config.targetFile}`
-  await compressFiles(config.targetDir, localFile, folderName)//压缩
+  // git更新
+  if(!gitUpdate(config.gitBranchName)) return
+  // 开始压缩
+  if(config.compress){
+    for(let i = 0; i < config.targetDir.length; i++){
+      const strArr = config.targetDir[i].split('/')
+      const folderName = strArr.pop()
+      const localFile =  `${__dirname}/${config.targetFile[i]}`
+      await compressFiles(config.targetDir[i], localFile, folderName)
+    }
+  }
+  // 启动多线程
   let threadCount = +process.argv[2] || 2
   let sshGroup = Math.ceil(config.ssh.length / threadCount)
   const threads = new Set()
@@ -62,23 +57,29 @@ async function main() {
   }
 }
 async function start(sshs) {
-  const localFile =  `${__dirname}/${config.targetFile}`
   for(let i = 0; i < sshs.length; i++) {
     const ssh = sshs[i]
     const nodeSsh = new node_ssh()
     await connectServe(ssh, nodeSsh)
-    await uploadFile(nodeSsh, {
-      targetFile: config.targetFile,
-      deployDir: ssh.deployDir,
-      host: ssh.host
-    }, localFile)
-    await command(nodeSsh, 'rm -rf ' + ssh.releaseDir, ssh.deployDir)
-    await command(nodeSsh, 'mkdir ' + ssh.releaseDir, ssh.deployDir)
-    await command(nodeSsh, 'unzip ' + config.targetFile, ssh.deployDir)
-    await command(nodeSsh, `mv ${folderName} ${ssh.releaseDir}`, ssh.deployDir) 
-    await command(nodeSsh, `mv ${config.targetFile} ${utils.getCurrentTime()}.zip`, ssh.deployDir) 
-    await command(nodeSsh, 'rm -f ' + config.targetFile, ssh.deployDir)
-    console.log(`${ssh.host} => 服务器部署完成`)
+    for(let j = 0; j < config.targetDir.length; j++){
+      const strArr = config.targetDir[j].split('/')
+      const folderName = strArr.pop()
+      const targetArr = config.targetFile[j].split('/')
+      const targetName = targetArr.pop()
+      await uploadFile(nodeSsh, {
+        targetFile: targetName,
+        deployDir: ssh.deployDir[j],
+        host: ssh.host
+      }, `${__dirname}/${config.targetFile[j]}`)
+      await command(nodeSsh, 'rm -rf ' + ssh.releaseDir[i], ssh.deployDir[j])
+      // await command(nodeSsh, 'mkdir ' + ssh.releaseDir[i], ssh.deployDir[j])
+      console.log(folderName, ssh.releaseDir[j], ssh.deployDir[j])
+      await command(nodeSsh, 'unzip ' + targetName, ssh.deployDir[j])
+      await command(nodeSsh, `mv ${folderName} ${ssh.releaseDir[j]}`, ssh.deployDir[j]) 
+      await command(nodeSsh, `mv ${targetName} ${utils.getCurrentTime()}.zip`, ssh.deployDir[j]) 
+      await command(nodeSsh, 'rm -f ' + targetName, ssh.deployDir[j])
+    }
+    console.log(`${ssh.host} => 前端部署完成`)
   }
   return sshs;
 }
