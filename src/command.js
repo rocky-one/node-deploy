@@ -1,17 +1,17 @@
-function command (ssh, command, path) {
+function command(ssh, command, path) {
   return new Promise((resolve, reject) => {
     ssh.execCommand(command, {
       cwd: path
-    }).then((res) => {
+    }).then(res => {
       if (res.stderr) {
-        console.error(res, '执行发生错误')
-        reject(res.stderr)
-        process.exit()
+        console.error(res, '执行发生错误');
+        reject(res.stderr);
+        process.exit();
       } else {
-        resolve()
+        resolve();
       }
-    })
-  })
+    });
+  });
 }
 
-module.exports = command
+module.exports = command;
